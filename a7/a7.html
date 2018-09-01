@@ -1,0 +1,561 @@
+<head>
+	<title>kool tubez</title>
+	<meta charset="UTF-8">
+</head>
+<body>
+<br>
+<canvas id="myCanvas" width="1000" height="500" style="border:1px solid #cccccc;"></canvas>
+
+<script type="text/javascript">
+
+function Sprite(x, y, type, update_method, onclick_method, adjust_method)
+{
+	this.x = x; //position
+	this.y = y;
+	
+	this.type = type;
+	
+	this.images = [];
+	this.imageCount = 0;
+	if (this.type == "tube")
+	{
+        this.w = 55; //hitbox
+        this.h = 400;
+        
+        this.image1 = new Image();
+        this.image1.src = "tube.png";
+        this.images.push(this.image1);
+        
+        
+        this.prevX = undefined;
+        this.prevY = undefined;
+        
+        this.speed = undefined;
+        this.vertV = undefined;
+        this.direction = undefined;
+	}
+	else if(this.type == "mario")
+	{
+        this.w = 61;
+        this.h = 95;
+        
+        this.countJump = 0;
+        
+        this.image1 = new Image();
+        this.image1.src = "mario1.png";
+        this.images.push(this.image1);
+        
+        this.image2 = new Image();
+        this.image2.src = "mario2.png";
+        this.images.push(this.image2);
+        
+        this.image3 = new Image();
+        this.image3.src = "mario3.png";
+        this.images.push(this.image3);
+        
+        this.image4 = new Image();
+        this.image4.src = "mario4.png";
+        this.images.push(this.image4);
+        
+        this.image5 = new Image();
+        this.image5.src = "mario5.png";
+        this.images.push(this.image5);
+        
+        this.prevX = this.x;
+        this.prevY = this.y;
+        
+        this.speed = 10.0;
+        this.vertV = -12.0;
+        this.direction = true; //true = to the right
+        
+        this.moveLeft = false;
+        this.moveRight = false;
+        this.moveJump = false;
+	}
+	else if(this.type == "goomba")
+	{
+        this.w = 99;
+        this.h = 118;
+        
+        this.image1 = new Image();
+        this.image1.src = "goomba.png";
+        this.images.push(this.image1);
+        
+        this.image2 = new Image();
+        this.image2.src = "goomba_fire.png";
+        this.images.push(this.image2);
+        
+        this.prevX = x;
+        this.prevY = y;
+        this.speed = 7.0;
+        this.vertV = -12.0;
+        this.direction = false; //true = to the right
+        
+        this.onFire = false //not onFire
+        this.burnTime = 0; //how long on fire
+	}
+	else if(this.type == "fireball")
+	{
+        
+        this.w = 47;
+        this.h = 47;
+        
+        this.image1 = new Image();
+        this.image1.src = "fireball.png";
+        this.images.push(this.image1);
+        
+        this.prevX = x;
+        this.prevY = y;
+        this.speed = 14.0;
+        this.vertV = -12.0;
+        this.direction = undefined;
+        
+        this.burnTime = 0;
+	}
+	this.remove = false; //to be removed;
+	
+	this.adjust = adjust_method;//how sprite adjusts
+	this.update = update_method;//how the sprite gets updated
+	this.onclick = onclick_method;//what happens if you click on sprite
+}
+
+//click stuff
+Sprite.prototype.delete_click = function(x, y)
+{
+    if (x > this.x + this.w) return false;
+    if (x < this.x) return false;
+    if (y > this.y + this.h) return false;
+    if (y < this.y) return false;
+    
+    this.remove = true;
+    return true;
+}
+Sprite.prototype.ignore_click = function(x, y)
+{
+}
+
+//adjusting post collson stuff
+Sprite.prototype.marioAdjust = function(a)
+{
+    if (this.prevX + this.w <= a.x)
+    {
+        this.x = a.x - this.w;
+    }
+    else if ((this.prevX) >= (a.x + a.w))
+    {
+        this.x = a.x + a.w;
+    }
+    else if (this.prevY + this.h <= a.y)
+    {
+        this.vertV = 0.0;
+        this.y = a.y - this.h;
+        this.countJump = 0;
+    }
+    else if (this.prevY >= a.y + a.h)
+    {
+        this.vertV = 0.0;
+        this.y = a.y + a.h;
+    }
+}
+Sprite.prototype.noAdjust = function(a)
+{
+}
+Sprite.prototype.otherAdjust = function(a)
+{
+    if (this.prevX + this.w <= a.x)
+    {
+        this.x = a.x - this.w;
+        this.direction = !this.direction;
+    }
+    else if ((this.prevX) >= (a.x + a.w))
+    {
+        this.x = a.x + a.w;
+        this.direction = !this.direction;
+    }
+    else if (this.prevY + this.h <= a.y)
+    {
+        this.vertV = 0.0;
+        this.y = a.y - this.h;
+    }
+    else if (this.prevY >= a.y + a.h)
+    {
+        this.vertV = 0.0;
+        this.y = a.y + a.h;
+    }
+}
+
+//update stuff
+Sprite.prototype.mario_update = function()
+{
+	//set previous positon before changing it
+    this.prevX = this.x;
+    this.prevY = this.y;
+    
+    //controller updates directions moving
+    if (this.moveLeft)
+        this.x -= this.speed;
+    if (this.moveRight)
+        this.x += this.speed;
+    if (this.moveJump)
+    {
+        if (this.countJump < 5)
+        {
+            this.vertV += 17.0;
+            this.countJump++;//can't jump forever
+        }
+    }
+    
+    //determines direction (mainly for fireball generation)
+    if (this.prevX < this.x) this.direction = true;
+    else if (this.prevX > this.x) this.direction = false;
+    
+    //basic gravity
+    this.vertV -= 7.0;
+    this.y -= this.vertV;
+    
+    //dont let mario fall through the ground
+    if (this.y > 400 - this.h)
+    {
+        this.vertV = 0.0;
+        this.y = 400 - this.h;
+        this.countJump = 0;
+    }   
+    
+        
+    //makes mario stand still if not moving
+    if (this.moveLeft || this.moveRight)
+    {
+        this.imageCount++;
+        if (this.imageCount > 4) this.imageCount = 0;
+    }
+    else
+    {
+        this.imageCount = 3;
+    }
+        
+    //resets move commands
+    this.moveLeft = false;
+    this.moveRight = false;
+    this.moveJump = false;
+}
+Sprite.prototype.goomba_update = function()
+{
+    //stores previous location
+    this.prevX = this.x;
+    this.prevY = this.y;
+    
+    //basic gravity
+    this.vertV -= 7.0;
+    this.y -= this.vertV;
+    
+    if (this.y > 400 - this.h) //dont let the goomba fall through the ground
+    {
+        this.vertV = 0.0;
+        this.y = 400 - this.h;
+    }
+    
+    if (this.onFire) //what to do if goomba is on fire
+    {
+        this.burnTime++;
+        if (this.direction) this.x += ((1.5) * this.speed); //move faster bc fire
+        else {this.x -= ((1.5) * this.speed);}
+        this.imageCount = 1; //switch image count to fire one
+        
+        if (this.burnTime > 40) this.remove = true;
+    }
+    else
+    {
+        if (this.direction) this.x += this.speed;
+        else {this.x -= this.speed;}
+    }
+    
+}
+Sprite.prototype.fireball_update = function()
+{
+    if (this.burnTime > 40) this.remove = true;
+    //stores previous location
+    this.prevX = this.x;
+    this.prevY = this.y;
+    
+    //basic gravity
+    this.vertV -= 7.0;
+    this.y -= this.vertV;
+    
+    if (this.y > 400 - this.h) //dont let the goomba fall through the ground
+    {
+        this.vertV = 40.0;
+        this.y = 400 - this.h;
+    }
+    
+    
+    if (this.direction) this.x += this.speed;
+    else {this.x -= this.speed;}
+    
+    this.burnTime++;
+    
+}
+Sprite.prototype.sit_still = function()
+{
+}
+//collison stuff
+Sprite.prototype.overlap = function(b)
+{
+    if ((this.x + this.w) <= b.x) return false;
+    if (this.x >= (b.x + b.w)) return false;
+    if ((this.y + this.h) <= b.y) return false;
+    if (this.y >= (b.y + b.h)) return false;
+
+    return true;
+}
+Sprite.prototype.collisonCorrection = function(i, sprites)
+{
+    for(let j = 0; j < sprites.length; j++)
+    {
+        if(i != j)
+        {
+            let tmp = sprites[j];
+            if(this.overlap(tmp) && this.type != "tube")
+            {
+                if (this.type == "fireball" && tmp.type == "goomba")
+                {
+                    tmp.onFire = true;
+                    this.remove = true;
+                }
+                else { this.adjust(tmp); }
+            }
+        }
+    }
+}
+
+
+Sprite.prototype.setDirection = function(d)
+{
+    this.direction = d;
+}
+
+
+function Model()
+{
+	this.sprites = [];
+    this.scrollPos = 0;
+	this.mario = undefined;
+	
+    
+    
+    this.level = {"sprites":[{"name":"tube","x":68,"y":1},{"name":"mario","x":123,"y":305},{"name":"tube","x":278,"y":304},{"name":"tube","x":531,"y":380},{"name":"tube","x":644,"y":326},{"name":"goomba","x":1007,"y":282},{"name":"tube","x":1201,"y":99},{"name":"goomba","x":1508,"y":282},{"name":"tube","x":1897,"y":153},{"name":"tube","x":2218,"y":284},{"name":"tube","x":2273,"y":99},{"name":"tube","x":2475,"y":24},{"name":"tube","x":2672,"y":37},{"name":"goomba","x":2972,"y":282},{"name":"tube","x":3665,"y":3}]};
+    
+    this.load();
+}
+Model.prototype.load = function()
+{
+    for (let i = 0; i < this.level.sprites.length; i++)
+    {
+        let s = undefined;
+        let type = this.level.sprites[i]["name"];
+        if (type == "mario")
+        {
+            s = new Sprite(this.level.sprites[i]["x"], this.level.sprites[i]["y"], type, Sprite.prototype.mario_update, Sprite.prototype.ignore_click, Sprite.prototype.marioAdjust);
+            this.mario = s;
+        }
+        else if (type == "goomba")
+        {
+            s = new Sprite(this.level.sprites[i]["x"], this.level.sprites[i]["y"], type, Sprite.prototype.goomba_update, Sprite.prototype.delete_click, Sprite.prototype.otherAdjust);
+        }
+        else if (type == "tube")
+        {
+            s = new Sprite(this.level.sprites[i]["x"], this.level.sprites[i]["y"], type, Sprite.prototype.sit_still, Sprite.prototype.delete_click, Sprite.prototype.noAdjust);
+        }
+        this.sprites.push(s);
+    }
+}
+Model.prototype.update = function()
+{
+	for(let i = 0; i < this.sprites.length; i++)
+	{
+		this.sprites[i].update();
+		this.sprites[i].collisonCorrection(i, this.sprites);
+        if(this.sprites[i].type == "mario") this.scrollPos = this.mario.x - 200;
+		
+	}
+	for( let i = 0; i < this.sprites.length; i++)
+	{
+        if (this.sprites[i].remove == true) this.sprites.splice(i,1);
+	}
+}
+Model.prototype.addSprite = function(x, y, type)
+{
+    let s = undefined;
+    if (type == "tube")//sets s as a sprite
+    {
+        s = new Sprite(x, y, type, Sprite.prototype.sit_still, Sprite.prototype.delete_click, Sprite.prototype.noAdjust);
+    }
+    else if (type == "goomba")
+    {
+        s = new Sprite(x, y, type, Sprite.prototype.goomba_update, Sprite.prototype.delete_click, Sprite.prototype.otherAdjust);
+    }
+    else if (type == "fireball")
+    {
+        s = new Sprite(x, y, type, Sprite.prototype.fireball_update, Sprite.prototype.ignore_click, Sprite.prototype.otherAdjust);
+        
+        s.setDirection(this.mario.direction);
+    }
+    for (let i = 0; i < this.sprites.length; i++)//checks if s overlaps
+    {
+        let tmp = this.sprites[i];
+        if (s.overlap(tmp)) return; //if it does break (do not add s)
+    }
+    this.sprites.push(s); //add s
+}
+Model.prototype.onclick = function(x, y, type)
+{
+    let del = false;
+	for(let i = 0; i < this.sprites.length; i++) //checks if you clicked on an exisiting sprite
+	{
+        del = this.sprites[i].onclick(x, y);
+        if (del) return; //if delete youre done
+	}
+	this.addSprite(x,y,type); //adds sprite if you did not
+}
+
+Model.prototype.control = function(dx, dy, df)
+{
+	if (dx != 0)
+	{
+        if(dx > 0) this.mario.moveRight = true;
+        else this.mario.moveLeft = true;
+	}
+	if (dy < 0) this.mario.moveJump = true;
+	if (df > 0)
+	{
+        if(this.mario.direction)
+        {
+            this.addSprite(this.mario.x + this.mario.w + 1, this.mario.y, "fireball");
+        }
+        else { this.addSprite(this.mario.x + this.mario.w + 1, this.mario.y, "fireball"); }
+        
+        
+	}
+}
+
+
+
+
+
+function View(model)
+{
+	this.model = model;
+	this.canvas = document.getElementById("myCanvas");
+}
+
+View.prototype.update = function()
+{
+	let ctx = this.canvas.getContext("2d");
+	ctx.fillStyle = "#00F5FF";
+	ctx.fillRect(0, 0, 1000, 500);
+	ctx.fillStyle = "#008B00";
+	ctx.fillRect(0, 400, 1000, 100);
+	for(let i = 0; i < this.model.sprites.length; i++)
+	{
+		let sprite = this.model.sprites[i];
+		ctx.drawImage(sprite.images[sprite.imageCount], sprite.x - this.model.scrollPos, sprite.y);
+	}
+}
+
+
+
+
+
+
+
+
+
+function Controller(model, view)
+{
+	this.model = model;
+	this.view = view;
+	this.key_right = false;
+	this.key_left = false;
+	this.key_ctrl = false;
+	this.key_space = false;
+	let self = this;
+	view.canvas.addEventListener("click", function(event) { self.onClick(event); }); //left click
+	
+	view.canvas.addEventListener( //right click
+		"contextmenu",
+		function(event) {
+			event.preventDefault();
+			self.onRightClick(event);
+			return false;
+		},
+		false
+	);
+	
+	document.addEventListener('keydown', function(event) { self.keyDown(event); }, false);
+	document.addEventListener('keyup', function(event) { self.keyUp(event); }, false);
+}
+
+Controller.prototype.onClick = function(event)
+{
+	this.model.onclick(event.pageX - this.view.canvas.offsetLeft + this.model.scrollPos, event.pageY - this.view.canvas.offsetTop, "tube");
+}
+Controller.prototype.onRightClick = function(event)
+{
+    this.model.onclick(event.pageX - this.view.canvas.offsetLeft + this.model.scrollPos, event.pageY - this.view.canvas.offsetTop, "goomba");
+}
+Controller.prototype.keyDown = function(event)
+{
+	if(event.keyCode == 39) this.key_right = true;
+	else if(event.keyCode == 37) this.key_left = true;
+	else if(event.keyCode == 17) this.key_ctrl = true;
+	else if(event.keyCode == 32) this.key_space = true;
+}
+
+Controller.prototype.keyUp = function(event)
+{
+	if(event.keyCode == 39) this.key_right = false;
+	else if(event.keyCode == 37) this.key_left = false;
+	else if(event.keyCode == 17) this.key_ctrl = false;
+	else if(event.keyCode == 32) this.key_space = false;
+}
+
+Controller.prototype.update = function()
+{
+	let dx = 0;
+	let dy = 0;
+	let df = 0;
+	if(this.key_right) dx++;
+	if(this.key_left) dx--;
+	if(this.key_ctrl) df++;
+	if(this.key_space) dy--;
+	if(dx != 0 || dy != 0 || df != 0)
+		this.model.control(dx, dy, df);
+}
+
+
+
+
+
+
+
+function Game()
+{
+	this.model = new Model();
+	this.view = new View(this.model);
+	this.controller = new Controller(this.model, this.view);
+}
+
+Game.prototype.onTimer = function()
+{
+	this.controller.update();
+	this.model.update();
+	this.view.update();
+}
+
+
+
+let game = new Game();
+let timer = setInterval(function() { game.onTimer(); }, 40);
+
+</script>
+
+</body>

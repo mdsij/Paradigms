@@ -1,0 +1,265 @@
+<html><head>
+<script type="text/javascript">
+
+let clientID = Math.floor(Math.random() * 1000);
+let serverID = -1;
+let server_marioX = undefined;
+let server_goombaX = undefined;
+let chatLog = 0;
+function httpPost(url, payload, callback)
+{
+	let request = new XMLHttpRequest();
+	request.onreadystatechange = function()
+	{
+		if(request.readyState == 4)
+		{
+			if(request.status == 200)
+			callback(request.responseText);
+			else
+			{
+				if(request.status == 0 && request.statusText.length == 0)
+					alert("Connection failed");
+				else
+					alert("Server returned status " + request.status + ", " + request.statusText);
+			}
+		}
+	};
+	request.open('post', url, true);
+	request.setRequestHeader('Content-Type',
+	'application/x-www-form-urlencoded');
+	request.send(payload);
+}
+
+function cb(response)
+{
+	// Parse the JSON
+	let ob = JSON.parse(response);
+	serverID = ob.ID;
+	server_goombaX = ob.goombaX;
+	server_marioX = ob.marioX;
+	chatLog = ob.chatSize;
+	
+	for (let i = 0; i < ob.chat.chat.length; i++)
+	{
+        updateChat(ob.chat.chat[i]["chat"]);
+	}
+	
+}
+function updateChat(chats)
+{
+    let x = document.getElementById("chatHistory");
+    let option = document.createElement("option");
+    option.text = chats;
+    x.add(option);
+}
+function move(position)
+{
+
+	// Make a JSON blob
+	let ob = {};
+	ob.id = clientID;
+	ob.action = "move";
+	ob.pos = position;
+	ob.log = chatLog;
+	let json_string = JSON.stringify(ob);
+
+	// Send the JSON blob to the server
+	httpPost("ajax_handler.html", json_string, cb);
+}
+function request()
+{
+    let ob = {};
+    ob.id = clientID;
+    ob.action = "update";
+    ob.pos = "-1";
+    ob.log = chatLog;
+    let json_string = JSON.stringify(ob);
+    
+    httpPost("ajax_handler.html", json_string, cb);
+}
+
+function sendMessage()
+{
+    let msg = document.getElementById("mymessage");
+    let ob = {};
+    ob.id = clientID;
+    ob.action = "chat";
+    ob.val = msg.value;
+    ob.log = chatLog;
+    let json_string = JSON.stringify(ob);
+    
+    httpPost("ajax_handler.html", json_string, cb);
+}
+</script>
+</head><body>
+<canvas id="myCanvas" width="1000" height="500" style="border:1px solid #cccccc;"></canvas>
+<script type="text/javascript">
+//Actual game stuff
+function Sprite(x, image_url, type)
+{
+	this.x = x;
+	this.type = type;
+	this.image = new Image();
+	this.image.src = image_url;
+	this.update = Sprite.prototype.update;
+}
+
+Sprite.prototype.update = function(x)
+{
+	this.x = x;
+}
+
+
+function Model()
+{
+	this.sprites = [];
+	this.mario = new Sprite(200, "mario3.png","mario")
+	this.sprites.push(this.mario);
+	this.goomba = new Sprite(50, "goomba.png","goomba");
+	this.sprites.push(this.goomba);
+}
+
+Model.prototype.update = function()
+{
+	for(let i = 0; i < this.sprites.length; i++)
+	{
+        if (this.sprites[i].type == "goomba")
+        {
+            this.sprites[i].update(server_goombaX);
+        }
+        else {this.sprites[i].update(server_marioX);}
+	}
+}
+
+Model.prototype.onclick = function(x, y)
+{
+	for(let i = 0; i < this.sprites.length; i++)
+	{
+		this.sprites[i].onclick(x, y);
+	}
+}
+
+Model.prototype.control = function(dir)
+{
+	if (dir == "right")
+	{
+        if (serverID == 0)
+        {
+            move(this.mario.x + 10);
+        }
+        if (serverID == 1)
+        {
+            move(this.goomba.x + 10);
+        }
+	}
+	else if (dir == "left")
+	{
+        if (serverID == 0)
+        {
+            move(this.mario.x - 10);
+        }
+        if (serverID == 1)
+        {
+            move(this.goomba.x - 10);
+        }
+	}
+}
+
+function View(model)
+{
+	this.model = model;
+	this.canvas = document.getElementById("myCanvas");
+	this.turtle = new Image();
+	this.turtle.src = "turtle.png";
+}
+
+View.prototype.update = function()
+{
+	let ctx = this.canvas.getContext("2d");
+	ctx.clearRect(0, 0, 1000, 500);
+	for(let i = 0; i < this.model.sprites.length; i++)
+	{
+		let sprite = this.model.sprites[i];
+		ctx.drawImage(sprite.image, sprite.x, 400);
+	}
+}
+
+
+function Controller(model, view)
+{
+	this.model = model;
+	this.view = view;
+	this.key_right = false;
+	this.key_left = false;
+	this.key_up = false;
+	this.key_down = false;
+	let self = this;
+	view.canvas.addEventListener("click", function(event) { self.onClick(event); });
+	document.addEventListener('keydown', function(event) { self.keyDown(event); }, false);
+	document.addEventListener('keyup', function(event) { self.keyUp(event); }, false);
+}
+
+Controller.prototype.onClick = function(event)
+{
+	
+}
+
+Controller.prototype.keyDown = function(event)
+{
+	if(event.keyCode == 39) this.key_right = true;
+	else if(event.keyCode == 37) this.key_left = true;
+	
+}
+
+
+Controller.prototype.keyUp = function(event)
+{
+	if(event.keyCode == 39) this.key_right = false;
+	else if(event.keyCode == 37) this.key_left = false;
+	
+}
+
+Controller.prototype.update = function()
+{
+	
+	if(this.key_right) this.model.control("right");
+	if(this.key_left) this.model.control("left");
+	
+}
+
+
+function Game()
+{
+	this.model = new Model();
+	this.view = new View(this.model);
+	this.controller = new Controller(this.model, this.view);
+}
+
+Game.prototype.onTimer = function()
+{
+	this.controller.update();
+	this.model.update();
+	this.view.update();
+}
+
+
+
+let game = new Game();
+let timer = setInterval(function() { game.onTimer(); }, 40);
+let timer2 = setInterval(function() { request(); }, 500);
+
+</script>
+<table>
+	<tr><td>
+		<form>
+			<select id="chatHistory" size="12" style="width:100%">
+			</select>
+		</form>
+	</td></tr>
+	<tr><td>
+		<input type="text" id="mymessage">
+        <input type="button" onclick="sendMessage();" value="send">
+	</td></tr>
+</table>
+
+</body></html>
